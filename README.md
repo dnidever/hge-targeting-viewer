@@ -15,7 +15,7 @@ Upload a FITS, CSV, Parquet, or whitespace-delimited table containing at least:
 - `jmag`, `hmag`, `kmag` in magnitudes
 - `ak`, the Ks-band extinction used to color the CMD points
 
-The sidebar controls the circular selection radius, density-map resolution, and maximum number of displayed CMD points. A manual center entry is also provided. Extra catalog columns, including `jk0` and `h0`, are retained but are not required.
+The sidebar controls the circular selection radius (default `0.06` degrees), density-map resolution, maximum number of displayed CMD points, and fixed `J-Ks` and `H` axis limits. Enable **Automatic CMD axis ranges** to let Plotly determine the ranges separately for each selected region. A manual map center entry is also provided. Extra catalog columns, including `jk0` and `h0`, are retained but are not required.
 
 ## Notes
 
