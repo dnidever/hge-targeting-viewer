@@ -227,6 +227,7 @@ if event:
         new_center = (float(point["x"]), float(point["y"]))
         if new_center != st.session_state.map_center:
             st.session_state.map_center = new_center
+            st.rerun()
 
 bin_count = density_bin_count(catalog, catalog_key, bins, st.session_state.map_center)
 map_status.caption(
