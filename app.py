@@ -87,7 +87,7 @@ def map_figure(
     fig.update_layout(
         xaxis_title="Galactic longitude l (deg)", yaxis_title="Galactic latitude b (deg)",
         margin=dict(l=10, r=10, t=35, b=10), height=620, uirevision="density-map",
-        title="Stellar density — hover to move the selection",
+        title="Stellar density — click to move the selection",
     )
     return fig
 
@@ -106,7 +106,9 @@ def cmd_figure(
         np.column_stack((displayed.l, displayed.b, displayed.jmag, displayed.kmag))
         if len(displayed) else None
     )
-    fig = go.Figure(go.Scattergl(
+    # Use the SVG scatter renderer rather than Scattergl so the CMD works in
+    # browsers or remote-desktop sessions without WebGL support.
+    fig = go.Figure(go.Scatter(
         x=color, y=displayed.hmag, mode="markers",
         marker={"size": 4, "opacity": 0.45, "color": displayed.hmag, "colorscale": "Plasma", "showscale": False},
         customdata=custom,
@@ -149,15 +151,11 @@ except Exception as exc:
 
 radius = st.sidebar.number_input("Circular region radius (deg)", 0.001, 5.0, 0.10, 0.01, format="%.3f")
 bins = st.sidebar.slider("Density-map bins per axis", 30, 250, 120, 10)
-interaction = st.sidebar.radio(
-    "Move the selection with",
-    ("Click (fast)", "Hover (slower)"),
-    help="Hover causes a full Streamlit rerun for every density bin crossed. Click is much faster for large catalogs.",
-)
 max_cmd_points = st.sidebar.select_slider(
     "Maximum CMD points displayed",
-    options=[5_000, 10_000, 25_000, 50_000, 100_000],
-    value=25_000,
+    options=[2_000, 5_000, 10_000, 20_000],
+    value=5_000,
+    help="The CMD uses a non-WebGL renderer. Lower values are faster for large selections.",
 )
 catalog_key = f"{uploaded.name}:{len(file_bytes)}:{len(catalog)}"
 initial_l = float(np.nanmedian(catalog.l))
@@ -173,11 +171,10 @@ with st.sidebar.expander("Set center manually"):
 
 left, right = st.columns([1.15, 1.0])
 with left:
-    st.caption("Click a density bin to update the CMD." if interaction.startswith("Click") else "Hover over a density bin to update the CMD.")
+    st.caption("Click a density bin to update the CMD.")
     event = plotly_events(
         map_figure(catalog, catalog_key, bins, st.session_state.map_center, radius),
-        hover_event=interaction.startswith("Hover"),
-        click_event=interaction.startswith("Click"), select_event=False,
+        hover_event=False, click_event=True, select_event=False,
         override_height=620, key="density_map",
     )
 
