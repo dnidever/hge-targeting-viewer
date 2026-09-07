@@ -20,6 +20,7 @@ The sidebar controls the circular selection radius, density-map resolution, and 
 ## Notes
 
 - The density map is binned, so the selected center is the center of the clicked bin.
+- The density color scale is shown horizontally below the map; cursor details are reported in a fixed caption rather than a floating tooltip.
 - The map uses equal scaling in Galactic longitude and latitude so its spatial aspect ratio is preserved.
 - CMD points are color-coded by `ak`.
 - Circular selections use a 3D unit-vector KD-tree and exact spherical chord distances, including across the `l=0/360` boundary.
