@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from astropy.table import Table
+from plotly.subplots import make_subplots
 from scipy.spatial import cKDTree
 from streamlit_plotly_events import plotly_events
 
@@ -73,28 +74,41 @@ def map_figure(
     )
     l_centers = (l_edges[:-1] + l_edges[1:]) / 2
     b_centers = (b_edges[:-1] + b_edges[1:]) / 2
-    fig = go.Figure(go.Heatmap(
+    fig = make_subplots(
+        rows=2, cols=1, row_heights=[0.93, 0.07], vertical_spacing=0.13,
+    )
+    fig.add_trace(go.Heatmap(
         x=l_centers, y=b_centers, z=counts.T, colorscale="Viridis",
-        colorbar={
-            "title": {"text": "Stars per density bin", "side": "bottom"},
-            "orientation": "h", "x": 0.5, "xanchor": "center",
-            "y": -0.20, "yanchor": "top", "len": 1.0, "thickness": 16,
-        },
-        hoverinfo="none",
-    ))
+        showscale=False, hoverinfo="none",
+    ), row=1, col=1)
     theta = np.linspace(0, 2 * np.pi, 181)
     cos_b = max(np.cos(np.deg2rad(center[1])), 0.05)
     fig.add_trace(go.Scatter(
         x=center[0] + radius * np.cos(theta) / cos_b,
         y=center[1] + radius * np.sin(theta), mode="lines",
         line={"color": "white", "width": 2}, hoverinfo="skip", showlegend=False,
-    ))
+    ), row=1, col=1)
+
+    # A one-row heatmap is used as the horizontal color scale because the
+    # Plotly version bundled by streamlit-plotly-events ignores horizontal
+    # orientation on a regular colorbar.
+    maximum = float(np.nanmax(counts))
+    scale_values = np.linspace(0.0, maximum, 256)
+    fig.add_trace(go.Heatmap(
+        x=scale_values, y=[0], z=scale_values[np.newaxis, :],
+        colorscale="Viridis", showscale=False, hoverinfo="skip",
+    ), row=2, col=1)
     fig.update_layout(
-        xaxis_title="Galactic longitude l (deg)", yaxis_title="Galactic latitude b (deg)",
-        margin=dict(l=10, r=10, t=35, b=90), height=620, uirevision="density-map",
+        margin=dict(l=10, r=10, t=35, b=55), height=660, uirevision="density-map",
         title="Stellar density — click to move the selection",
     )
-    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+    fig.update_xaxes(title_text="Galactic longitude l (deg)", row=1, col=1)
+    fig.update_yaxes(
+        title_text="Galactic latitude b (deg)", scaleanchor="x", scaleratio=1,
+        row=1, col=1,
+    )
+    fig.update_xaxes(title_text="Stars per density bin", row=2, col=1)
+    fig.update_yaxes(showticklabels=False, ticks="", row=2, col=1)
     return fig
 
 
@@ -203,7 +217,7 @@ with left:
 
 if event:
     point = event[-1]
-    if "x" in point and "y" in point:
+    if point.get("curveNumber") == 0 and "x" in point and "y" in point:
         new_center = (float(point["x"]), float(point["y"]))
         if new_center != st.session_state.map_center:
             st.session_state.map_center = new_center
