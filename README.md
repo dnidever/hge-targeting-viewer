@@ -1,6 +1,6 @@
 # HGE Targeting Photometry Viewer
 
-Interactive Streamlit viewer for an HGE photometric catalog. It displays a binned density map in Galactic longitude and latitude; hovering or clicking the map moves a circular selection and updates the adjacent `J-Ks` versus `H` CMD.
+Interactive Streamlit viewer for an HGE photometric catalog. It displays a binned density map in Galactic longitude and latitude; clicking or hovering over the map moves a circular selection and updates the adjacent `J-Ks` versus `H` CMD.
 
 ## Run
 
@@ -14,10 +14,11 @@ Upload a FITS, CSV, Parquet, or whitespace-delimited table containing at least:
 - `l`, `b` in degrees
 - `jmag`, `hmag`, `kmag` in magnitudes
 
-The sidebar controls the circular selection radius and density-map resolution. A manual center entry is available as a fallback. Extra catalog columns, including `ak`, `jk0`, and `h0`, are retained but are not required.
+The sidebar controls the circular selection radius, density-map resolution, interaction mode, and maximum number of displayed CMD points. Click mode is the default because it is substantially faster for large catalogs; hover mode remains available. A manual center entry is also provided. Extra catalog columns, including `ak`, `jk0`, and `h0`, are retained but are not required.
 
 ## Notes
 
 - The density map is binned, so the hover center is the center of the hovered bin.
 - Circular selections use a 3D unit-vector KD-tree and exact spherical chord distances, including across the `l=0/360` boundary.
+- The full-catalog density grid and spatial index are cached. Large CMD selections are randomly downsampled for display, while the title reports the full selected-star count.
 - For very large files, Parquet generally loads faster and uses less memory than text or CSV.
