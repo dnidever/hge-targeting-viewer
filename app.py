@@ -75,7 +75,12 @@ def map_figure(
     b_centers = (b_edges[:-1] + b_edges[1:]) / 2
     fig = go.Figure(go.Heatmap(
         x=l_centers, y=b_centers, z=counts.T, colorscale="Viridis",
-        colorbar={"title": "Stars/bin"}, hovertemplate="l=%{x:.4f}°<br>b=%{y:.4f}°<br>%{z:,.0f} stars<extra></extra>",
+        colorbar={
+            "title": {"text": "Stars per density bin", "side": "bottom"},
+            "orientation": "h", "x": 0.5, "xanchor": "center",
+            "y": -0.20, "yanchor": "top", "len": 1.0, "thickness": 16,
+        },
+        hoverinfo="none",
     ))
     theta = np.linspace(0, 2 * np.pi, 181)
     cos_b = max(np.cos(np.deg2rad(center[1])), 0.05)
@@ -86,11 +91,23 @@ def map_figure(
     ))
     fig.update_layout(
         xaxis_title="Galactic longitude l (deg)", yaxis_title="Galactic latitude b (deg)",
-        margin=dict(l=10, r=10, t=35, b=10), height=620, uirevision="density-map",
+        margin=dict(l=10, r=10, t=35, b=90), height=620, uirevision="density-map",
         title="Stellar density — click to move the selection",
     )
     fig.update_yaxes(scaleanchor="x", scaleratio=1)
     return fig
+
+
+def density_bin_count(
+    data: pd.DataFrame, catalog_key: str, bins: int,
+    center: tuple[float, float],
+) -> int:
+    counts, l_edges, b_edges = density_grid(
+        catalog_key, bins, data.l.to_numpy(), data.b.to_numpy()
+    )
+    i = np.clip(np.searchsorted(l_edges, center[0], side="right") - 1, 0, counts.shape[0] - 1)
+    j = np.clip(np.searchsorted(b_edges, center[1], side="right") - 1, 0, counts.shape[1] - 1)
+    return int(counts[i, j])
 
 
 def cmd_figure(
@@ -112,7 +129,7 @@ def cmd_figure(
     fig = go.Figure(go.Scatter(
         x=color, y=displayed.hmag, mode="markers",
         marker={
-            "size": 5, "opacity": 0.60, "color": displayed.ak,
+            "size": 3, "opacity": 0.55, "color": displayed.ak,
             "colorscale": "Viridis", "showscale": True,
             "colorbar": {"title": "A(Ks)"},
         },
@@ -182,6 +199,7 @@ with left:
         hover_event=False, click_event=True, select_event=False,
         override_height=620, key="density_map",
     )
+    map_status = st.empty()
 
 if event:
     point = event[-1]
@@ -189,6 +207,12 @@ if event:
         new_center = (float(point["x"]), float(point["y"]))
         if new_center != st.session_state.map_center:
             st.session_state.map_center = new_center
+
+bin_count = density_bin_count(catalog, catalog_key, bins, st.session_state.map_center)
+map_status.caption(
+    f"Selected center: **l={st.session_state.map_center[0]:.4f}°, "
+    f"b={st.session_state.map_center[1]:.4f}°** · Density bin: **{bin_count:,} stars**"
+)
 
 tree = make_spatial_index(
     catalog_key, catalog.l.to_numpy(copy=False), catalog.b.to_numpy(copy=False)
