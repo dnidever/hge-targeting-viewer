@@ -195,9 +195,9 @@ except Exception as exc:
 radius = st.sidebar.number_input("Circular region radius (deg)", 0.001, 5.0, 0.06, 0.01, format="%.3f")
 bins = st.sidebar.slider("Density-map bins per axis", 30, 250, 120, 10)
 max_cmd_points = st.sidebar.select_slider(
-    "Maximum CMD points displayed",
-    options=[2_000, 5_000, 10_000, 20_000],
-    value=5_000,
+    "Maximum CMD points rendered",
+    options=[500, 1_000, 2_000, 5_000, 10_000],
+    value=2_000,
     help="The CMD uses a non-WebGL renderer. Lower values are faster for large selections.",
 )
 auto_cmd_range = st.sidebar.toggle(
@@ -224,49 +224,55 @@ with st.sidebar.expander("Set center manually"):
     if st.button("Use manual center"):
         st.session_state.map_center = (manual_l, manual_b)
 
-left, right = st.columns([1.15, 1.0])
-with left:
-    st.caption("Click a density bin to update the CMD.")
-    event = plotly_events(
-        map_figure(catalog, catalog_key, bins, st.session_state.map_center, radius),
-        hover_event=False, click_event=True, select_event=False,
-        override_height=620, key="density_map",
+@st.fragment
+def interactive_viewer():
+    """Rerun only the map/CMD panel, rather than the full app, after a click."""
+    left, right = st.columns([1.15, 1.0])
+    with left:
+        st.caption("Click a density bin to update the CMD.")
+        event = plotly_events(
+            map_figure(catalog, catalog_key, bins, st.session_state.map_center, radius),
+            hover_event=False, click_event=True, select_event=False,
+            override_height=620, key="density_map",
+        )
+        st.plotly_chart(
+            density_scale_figure(catalog, catalog_key, bins),
+            use_container_width=True, config={"displayModeBar": False},
+        )
+        map_status = st.empty()
+
+    if event:
+        point = event[-1]
+        if "x" in point and "y" in point:
+            new_center = (float(point["x"]), float(point["y"]))
+            if new_center != st.session_state.map_center:
+                st.session_state.map_center = new_center
+                st.rerun(scope="fragment")
+
+    bin_count = density_bin_count(catalog, catalog_key, bins, st.session_state.map_center)
+    map_status.caption(
+        f"Selected center: **l={st.session_state.map_center[0]:.4f}°, "
+        f"b={st.session_state.map_center[1]:.4f}°** · Density bin: **{bin_count:,} stars**"
     )
-    st.plotly_chart(
-        density_scale_figure(catalog, catalog_key, bins),
-        use_container_width=True, config={"displayModeBar": False},
+
+    tree = make_spatial_index(
+        catalog_key, catalog.l.to_numpy(copy=False), catalog.b.to_numpy(copy=False)
     )
-    map_status = st.empty()
+    chord_radius = 2 * np.sin(np.deg2rad(radius) / 2)
+    indices = tree.query_ball_point(unit_vector(*st.session_state.map_center), chord_radius)
+    selected = catalog.iloc[indices]
 
-if event:
-    point = event[-1]
-    if "x" in point and "y" in point:
-        new_center = (float(point["x"]), float(point["y"]))
-        if new_center != st.session_state.map_center:
-            st.session_state.map_center = new_center
-            st.rerun()
+    with right:
+        st.caption(f"Selected region: **{len(selected):,} stars**")
+        st.plotly_chart(
+            cmd_figure(
+                selected, st.session_state.map_center, radius, max_cmd_points,
+                auto_cmd_range, color_min, color_max, h_bright, h_faint,
+            ),
+            use_container_width=True,
+        )
 
-bin_count = density_bin_count(catalog, catalog_key, bins, st.session_state.map_center)
-map_status.caption(
-    f"Selected center: **l={st.session_state.map_center[0]:.4f}°, "
-    f"b={st.session_state.map_center[1]:.4f}°** · Density bin: **{bin_count:,} stars**"
-)
 
-tree = make_spatial_index(
-    catalog_key, catalog.l.to_numpy(copy=False), catalog.b.to_numpy(copy=False)
-)
-chord_radius = 2 * np.sin(np.deg2rad(radius) / 2)
-indices = tree.query_ball_point(unit_vector(*st.session_state.map_center), chord_radius)
-selected = catalog.iloc[indices]
-
-with right:
-    st.caption(f"Selected region: **{len(selected):,} stars**")
-    st.plotly_chart(
-        cmd_figure(
-            selected, st.session_state.map_center, radius, max_cmd_points,
-            auto_cmd_range, color_min, color_max, h_bright, h_faint,
-        ),
-        use_container_width=True,
-    )
+interactive_viewer()
 
 st.caption(f"Catalog: {len(catalog):,} valid stars. The circular query uses exact angular separation on the sphere.")
