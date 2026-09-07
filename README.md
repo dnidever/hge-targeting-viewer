@@ -25,5 +25,6 @@ The sidebar controls the circular selection radius (default `0.06` degrees), den
 - CMD points are color-coded by `ak`.
 - Circular selections use a 3D unit-vector KD-tree and exact spherical chord distances, including across the `l=0/360` boundary.
 - The full-catalog density grid and spatial index are cached. Large CMD selections are randomly downsampled for display, while the title reports the full selected-star count.
+- Map clicks rerun only the interactive map/CMD section rather than the entire Streamlit app.
 - The CMD uses Plotly's standard SVG scatter renderer and therefore does not require WebGL.
 - For very large files, Parquet generally loads faster and uses less memory than text or CSV.
