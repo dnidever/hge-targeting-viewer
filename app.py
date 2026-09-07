@@ -1,5 +1,7 @@
 from pathlib import Path
+import tempfile
 
+import gdown
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -12,6 +14,17 @@ from streamlit_plotly_events import plotly_events
 st.set_page_config(page_title="HGE Targeting Photometry", layout="wide")
 
 REQUIRED = ("l", "b", "jmag", "hmag", "kmag", "ak")
+DEFAULT_CATALOG_ID = "1rE49oCkEQcmfFM7569EFpSjEblLG3H2F"
+
+
+def clean_catalog(frame: pd.DataFrame) -> pd.DataFrame:
+    frame.columns = [str(name).strip().lower() for name in frame.columns]
+    missing = [name for name in REQUIRED if name not in frame]
+    if missing:
+        raise ValueError(f"Missing required column(s): {', '.join(missing)}")
+    for name in REQUIRED:
+        frame[name] = pd.to_numeric(frame[name], errors="coerce")
+    return frame.replace([np.inf, -np.inf], np.nan).dropna(subset=list(REQUIRED)).reset_index(drop=True)
 
 
 @st.cache_data(show_spinner="Reading catalog…")
@@ -33,13 +46,37 @@ def read_catalog(file_bytes: bytes, filename: str) -> pd.DataFrame:
             buffer.seek(0)
             frame = pd.read_csv(buffer, delim_whitespace=True, comment="#")
 
-    frame.columns = [str(name).strip().lower() for name in frame.columns]
-    missing = [name for name in REQUIRED if name not in frame]
-    if missing:
-        raise ValueError(f"Missing required column(s): {', '.join(missing)}")
-    for name in REQUIRED:
-        frame[name] = pd.to_numeric(frame[name], errors="coerce")
-    return frame.replace([np.inf, -np.inf], np.nan).dropna(subset=list(REQUIRED)).reset_index(drop=True)
+    return clean_catalog(frame)
+
+
+@st.cache_resource(show_spinner="Downloading and reading the default HGE catalog…")
+def load_default_catalog(file_id: str) -> tuple[pd.DataFrame, str]:
+    """Download the shared Google Drive file once per Streamlit server process."""
+    download_dir = Path(tempfile.gettempdir()) / "hge-targeting-viewer"
+    download_dir.mkdir(parents=True, exist_ok=True)
+    downloaded = gdown.download(
+        id=file_id, output=f"{download_dir}/", quiet=True,
+    )
+    if downloaded is None:
+        raise RuntimeError(
+            "Google Drive download failed. Confirm that the file is shared as "
+            "'Anyone with the link'."
+        )
+
+    path = Path(downloaded)
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        frame = pd.read_csv(path)
+    elif suffix in {".parquet", ".pq"}:
+        frame = pd.read_parquet(path)
+    elif suffix in {".fits", ".fit", ".fz"}:
+        frame = Table.read(path, format="fits").to_pandas()
+    else:
+        try:
+            frame = Table.read(path).to_pandas()
+        except Exception:
+            frame = pd.read_csv(path, sep=r"\s+", comment="#")
+    return clean_catalog(frame), path.name
 
 
 @st.cache_resource(show_spinner="Building spatial index…")
@@ -178,19 +215,29 @@ def cmd_figure(
 
 
 st.title("HGE Targeting Photometry Viewer")
-uploaded = st.sidebar.file_uploader("Catalog", type=["fits", "fit", "fz", "csv", "parquet", "pq", "txt", "dat"])
+uploaded = st.sidebar.file_uploader(
+    "Optional replacement catalog",
+    type=["fits", "fit", "fz", "csv", "parquet", "pq", "txt", "dat"],
+)
 st.sidebar.caption("Required columns: l, b, jmag, hmag, kmag, ak")
 
 if uploaded is None:
-    st.info("Upload a FITS, CSV, Parquet, or whitespace-delimited catalog to begin.")
-    st.stop()
-
-try:
-    file_bytes = uploaded.getvalue()
-    catalog = read_catalog(file_bytes, uploaded.name)
-except Exception as exc:
-    st.error(f"Could not read the catalog: {exc}")
-    st.stop()
+    try:
+        catalog, catalog_name = load_default_catalog(DEFAULT_CATALOG_ID)
+        catalog_key = f"google-drive:{DEFAULT_CATALOG_ID}:{len(catalog)}"
+        st.sidebar.caption(f"Using default catalog: {catalog_name}")
+    except Exception as exc:
+        st.error(f"Could not load the default Google Drive catalog: {exc}")
+        st.stop()
+else:
+    try:
+        file_bytes = uploaded.getvalue()
+        catalog = read_catalog(file_bytes, uploaded.name)
+        catalog_name = uploaded.name
+        catalog_key = f"upload:{uploaded.name}:{len(file_bytes)}:{len(catalog)}"
+    except Exception as exc:
+        st.error(f"Could not read the uploaded catalog: {exc}")
+        st.stop()
 
 radius = st.sidebar.number_input("Circular region radius (deg)", 0.001, 5.0, 0.06, 0.01, format="%.3f")
 bins = st.sidebar.slider("Density-map bins per axis", 30, 250, 120, 10)
@@ -212,7 +259,6 @@ with st.sidebar.expander("Fixed CMD axis ranges", expanded=True):
 if not auto_cmd_range and (color_min >= color_max or h_bright >= h_faint):
     st.sidebar.error("CMD minima must be smaller than their corresponding maxima.")
     st.stop()
-catalog_key = f"{uploaded.name}:{len(file_bytes)}:{len(catalog)}"
 initial_l = float(np.nanmedian(catalog.l))
 initial_b = float(np.nanmedian(catalog.b))
 if "map_center" not in st.session_state:
