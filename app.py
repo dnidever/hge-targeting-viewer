@@ -11,7 +11,7 @@ from streamlit_plotly_events import plotly_events
 
 st.set_page_config(page_title="HGE Targeting Photometry", layout="wide")
 
-REQUIRED = ("l", "b", "jmag", "hmag", "kmag")
+REQUIRED = ("l", "b", "jmag", "hmag", "kmag", "ak")
 
 
 @st.cache_data(show_spinner="Reading catalog…")
@@ -89,6 +89,7 @@ def map_figure(
         margin=dict(l=10, r=10, t=35, b=10), height=620, uirevision="density-map",
         title="Stellar density — click to move the selection",
     )
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
     return fig
 
 
@@ -103,16 +104,20 @@ def cmd_figure(
         displayed = selected
     color = displayed.jmag - displayed.kmag
     custom = (
-        np.column_stack((displayed.l, displayed.b, displayed.jmag, displayed.kmag))
+        np.column_stack((displayed.l, displayed.b, displayed.jmag, displayed.kmag, displayed.ak))
         if len(displayed) else None
     )
     # Use the SVG scatter renderer rather than Scattergl so the CMD works in
     # browsers or remote-desktop sessions without WebGL support.
     fig = go.Figure(go.Scatter(
         x=color, y=displayed.hmag, mode="markers",
-        marker={"size": 4, "opacity": 0.45, "color": displayed.hmag, "colorscale": "Plasma", "showscale": False},
+        marker={
+            "size": 5, "opacity": 0.60, "color": displayed.ak,
+            "colorscale": "Viridis", "showscale": True,
+            "colorbar": {"title": "A(Ks)"},
+        },
         customdata=custom,
-        hovertemplate="J−Ks=%{x:.3f}<br>H=%{y:.3f}<br>l=%{customdata[0]:.4f}°<br>b=%{customdata[1]:.4f}°<extra></extra>",
+        hovertemplate="J−Ks=%{x:.3f}<br>H=%{y:.3f}<br>A(Ks)=%{customdata[4]:.3f}<br>l=%{customdata[0]:.4f}°<br>b=%{customdata[1]:.4f}°<extra></extra>",
     ))
     fig.update_yaxes(autorange="reversed")
     fig.update_layout(
@@ -136,7 +141,7 @@ def cmd_figure(
 
 st.title("HGE Targeting Photometry Viewer")
 uploaded = st.sidebar.file_uploader("Catalog", type=["fits", "fit", "fz", "csv", "parquet", "pq", "txt", "dat"])
-st.sidebar.caption("Required columns: l, b, jmag, hmag, kmag")
+st.sidebar.caption("Required columns: l, b, jmag, hmag, kmag, ak")
 
 if uploaded is None:
     st.info("Upload a FITS, CSV, Parquet, or whitespace-delimited catalog to begin.")
