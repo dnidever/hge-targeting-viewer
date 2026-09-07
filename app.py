@@ -206,7 +206,7 @@ auto_cmd_range = st.sidebar.toggle(
 )
 with st.sidebar.expander("Fixed CMD axis ranges", expanded=True):
     color_min = st.number_input("Minimum J − Ks", value=-0.5, step=0.1, format="%.2f")
-    color_max = st.number_input("Maximum J − Ks", value=5.0, step=0.1, format="%.2f")
+    color_max = st.number_input("Maximum J − Ks", value=8.0, step=0.1, format="%.2f")
     h_bright = st.number_input("Bright H limit", value=7.0, step=0.5, format="%.2f")
     h_faint = st.number_input("Faint H limit", value=18.0, step=0.5, format="%.2f")
 if not auto_cmd_range and (color_min >= color_max or h_bright >= h_faint):
