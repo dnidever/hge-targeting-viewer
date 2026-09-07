@@ -128,7 +128,8 @@ def density_bin_count(
 
 def cmd_figure(
     selected: pd.DataFrame, center: tuple[float, float], radius: float,
-    max_points: int,
+    max_points: int, auto_range: bool,
+    color_min: float, color_max: float, h_bright: float, h_faint: float,
 ) -> go.Figure:
     total = len(selected)
     if total > max_points:
@@ -152,7 +153,11 @@ def cmd_figure(
         customdata=custom,
         hovertemplate="J−Ks=%{x:.3f}<br>H=%{y:.3f}<br>A(Ks)=%{customdata[4]:.3f}<br>l=%{customdata[0]:.4f}°<br>b=%{customdata[1]:.4f}°<extra></extra>",
     ))
-    fig.update_yaxes(autorange="reversed")
+    if auto_range:
+        fig.update_yaxes(autorange="reversed")
+    else:
+        fig.update_xaxes(range=[color_min, color_max])
+        fig.update_yaxes(range=[h_faint, h_bright], autorange=False)
     fig.update_layout(
         title=f"CMD: {total:,} stars within {radius:.3f}° of ({center[0]:.4f}°, {center[1]:.4f}°)",
         xaxis_title="J − Ks (mag)", yaxis_title="H (mag)", height=620,
@@ -187,7 +192,7 @@ except Exception as exc:
     st.error(f"Could not read the catalog: {exc}")
     st.stop()
 
-radius = st.sidebar.number_input("Circular region radius (deg)", 0.001, 5.0, 0.10, 0.01, format="%.3f")
+radius = st.sidebar.number_input("Circular region radius (deg)", 0.001, 5.0, 0.06, 0.01, format="%.3f")
 bins = st.sidebar.slider("Density-map bins per axis", 30, 250, 120, 10)
 max_cmd_points = st.sidebar.select_slider(
     "Maximum CMD points displayed",
@@ -195,6 +200,18 @@ max_cmd_points = st.sidebar.select_slider(
     value=5_000,
     help="The CMD uses a non-WebGL renderer. Lower values are faster for large selections.",
 )
+auto_cmd_range = st.sidebar.toggle(
+    "Automatic CMD axis ranges", value=False,
+    help="When enabled, the axes adjust to the stars in each newly selected region.",
+)
+with st.sidebar.expander("Fixed CMD axis ranges", expanded=True):
+    color_min = st.number_input("Minimum J − Ks", value=-0.5, step=0.1, format="%.2f")
+    color_max = st.number_input("Maximum J − Ks", value=5.0, step=0.1, format="%.2f")
+    h_bright = st.number_input("Bright H limit", value=7.0, step=0.5, format="%.2f")
+    h_faint = st.number_input("Faint H limit", value=18.0, step=0.5, format="%.2f")
+if not auto_cmd_range and (color_min >= color_max or h_bright >= h_faint):
+    st.sidebar.error("CMD minima must be smaller than their corresponding maxima.")
+    st.stop()
 catalog_key = f"{uploaded.name}:{len(file_bytes)}:{len(catalog)}"
 initial_l = float(np.nanmedian(catalog.l))
 initial_b = float(np.nanmedian(catalog.b))
@@ -245,7 +262,10 @@ selected = catalog.iloc[indices]
 with right:
     st.caption(f"Selected region: **{len(selected):,} stars**")
     st.plotly_chart(
-        cmd_figure(selected, st.session_state.map_center, radius, max_cmd_points),
+        cmd_figure(
+            selected, st.session_state.map_center, radius, max_cmd_points,
+            auto_cmd_range, color_min, color_max, h_bright, h_faint,
+        ),
         use_container_width=True,
     )
 
