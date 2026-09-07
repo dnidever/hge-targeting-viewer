@@ -13,12 +13,15 @@ Upload a FITS, CSV, Parquet, or whitespace-delimited table containing at least:
 
 - `l`, `b` in degrees
 - `jmag`, `hmag`, `kmag` in magnitudes
+- `ak`, the Ks-band extinction used to color the CMD points
 
-The sidebar controls the circular selection radius, density-map resolution, and maximum number of displayed CMD points. A manual center entry is also provided. Extra catalog columns, including `ak`, `jk0`, and `h0`, are retained but are not required.
+The sidebar controls the circular selection radius, density-map resolution, and maximum number of displayed CMD points. A manual center entry is also provided. Extra catalog columns, including `jk0` and `h0`, are retained but are not required.
 
 ## Notes
 
 - The density map is binned, so the selected center is the center of the clicked bin.
+- The map uses equal scaling in Galactic longitude and latitude so its spatial aspect ratio is preserved.
+- CMD points are color-coded by `ak`.
 - Circular selections use a 3D unit-vector KD-tree and exact spherical chord distances, including across the `l=0/360` boundary.
 - The full-catalog density grid and spatial index are cached. Large CMD selections are randomly downsampled for display, while the title reports the full selected-star count.
 - The CMD uses Plotly's standard SVG scatter renderer and therefore does not require WebGL.
